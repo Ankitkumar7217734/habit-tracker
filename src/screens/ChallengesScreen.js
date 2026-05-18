@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHabits } from '../HabitContext';
 import { COLORS, CHALLENGE_TEMPLATES } from '../constants';
 import { getChallengeProgress, getChallengeInfo } from '../utils';
+import AccountButton from '../components/AccountButton';
 
 function ProgressBar({ current, target }) {
   const pct = target > 0 ? Math.min(1, current / target) : 0;
@@ -384,9 +385,12 @@ export default function ChallengesScreen() {
           <>
             <View style={s.headingRow}>
               <Text style={s.heading}>Challenges</Text>
-              <TouchableOpacity style={s.createBtn2} onPress={() => setCreateVisible(true)}>
-                <Text style={s.createBtn2Text}>+ Create</Text>
-              </TouchableOpacity>
+              <View style={s.headingActions}>
+                <TouchableOpacity style={s.createBtn2} onPress={() => setCreateVisible(true)}>
+                  <Text style={s.createBtn2Text}>+ Create</Text>
+                </TouchableOpacity>
+                <AccountButton />
+              </View>
             </View>
 
             {activeChallenges.length > 0 && (
@@ -434,6 +438,7 @@ const s = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 20, paddingBottom: 16 },
   heading: { color: COLORS.text, fontSize: 26, fontWeight: '700' },
+  headingActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   createBtn2: {
     backgroundColor: COLORS.accent, paddingHorizontal: 16, paddingVertical: 8,
     borderRadius: 10,

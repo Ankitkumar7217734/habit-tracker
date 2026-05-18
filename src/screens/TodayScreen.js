@@ -10,6 +10,7 @@ import { COLORS } from '../constants';
 import { getStreak, isHabitDoneToday, getTodayCount, getTimeOfDay, formatReminderTime } from '../utils';
 import AddHabitModal from '../components/AddHabitModal';
 import HabitOptionsSheet from '../components/HabitOptionsSheet';
+import AccountButton from '../components/AccountButton';
 
 export default function TodayScreen() {
   const { habits, toggleHabit, incrementHabit, decrementHabit, profile } = useHabits();
@@ -104,9 +105,12 @@ export default function TodayScreen() {
             <Text style={styles.greeting}>Good {getTimeOfDay()}</Text>
             <Text style={styles.title}>Today's Habits</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setAddVisible(true)}>
-            <Ionicons name="add" size={26} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <AccountButton />
+            <TouchableOpacity style={styles.addBtn} onPress={() => setAddVisible(true)}>
+              <Ionicons name="add" size={26} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Progress card */}
@@ -170,6 +174,7 @@ const styles = StyleSheet.create({
   },
   greeting: { color: COLORS.subtext, fontSize: 14 },
   title: { color: COLORS.text, fontSize: 26, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   addBtn: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.accent,
     alignItems: 'center', justifyContent: 'center',

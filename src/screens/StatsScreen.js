@@ -6,6 +6,7 @@ import { useHabits } from '../HabitContext';
 import { COLORS } from '../constants';
 import { getLast7Days, getStreak, xpToLevel, xpForLevel, shortDay, today } from '../utils';
 import DevPanel from '../components/DevPanel';
+import AccountButton from '../components/AccountButton';
 
 function MiniBar({ frac, isToday }) {
   const h = Math.max(4, Math.round(60 * frac));
@@ -96,9 +97,12 @@ export default function StatsScreen() {
           <TouchableOpacity onPress={handleHeadingTap} activeOpacity={1}>
             <Text style={styles.heading}>Stats</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setDevVisible(true)} style={styles.devBtn}>
-            <Ionicons name="construct-outline" size={16} color={COLORS.text} />
-          </TouchableOpacity>
+          <View style={styles.headingActions}>
+            <TouchableOpacity onPress={() => setDevVisible(true)} style={styles.devBtn}>
+              <Ionicons name="construct-outline" size={16} color={COLORS.text} />
+            </TouchableOpacity>
+            <AccountButton />
+          </View>
         </View>
 
         {/* Summary card */}
@@ -154,6 +158,7 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 20, paddingBottom: 16 },
   heading: { color: COLORS.text, fontSize: 26, fontWeight: '700' },
+  headingActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   devBtn: {
     backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
     borderWidth: 1, borderColor: COLORS.border,

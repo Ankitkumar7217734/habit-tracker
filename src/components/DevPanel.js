@@ -4,12 +4,21 @@ import {
   StyleSheet, Alert, Platform,
 } from 'react-native';
 import { useHabits } from '../HabitContext';
+import { useAuth } from '../AuthContext';
 import { COLORS } from '../constants';
 import { getStreak } from '../utils';
 
 export default function DevPanel({ visible, onClose }) {
   const { habits, simulateStreak, resetHabit, clearAllData } = useHabits();
+  const { signOut, session } = useAuth();
   const [selected, setSelected] = useState(null);
+
+  const handleSignOut = () => {
+    Alert.alert('Sign out?', 'You will need to sign in again to access your habits.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: async () => { await signOut(); onClose(); } },
+    ]);
+  };
 
   const handleSimulate = async (days) => {
     if (!selected) {
@@ -97,6 +106,16 @@ export default function DevPanel({ visible, onClose }) {
             Adds completions for past N days and triggers streak rewards instantly.
           </Text>
 
+          {/* Account */}
+          {session?.user?.email && (
+            <Text style={styles.accountText}>
+              Signed in as {session.user.email}
+            </Text>
+          )}
+          <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+
           {/* Danger zone */}
           <TouchableOpacity style={styles.dangerBtn} onPress={handleClearAll}>
             <Text style={styles.dangerText}>🗑 Clear All Data</Text>
@@ -153,4 +172,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.danger + '44',
   },
   dangerText: { color: COLORS.danger, fontWeight: '700', fontSize: 14 },
+  accountText: {
+    color: COLORS.subtext, fontSize: 12, textAlign: 'center', marginBottom: 8,
+  },
+  signOutBtn: {
+    paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginBottom: 12,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg,
+  },
+  signOutText: { color: COLORS.text, fontWeight: '600', fontSize: 14 },
 });

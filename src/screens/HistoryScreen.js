@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useHabits } from '../HabitContext';
 import { COLORS } from '../constants';
 import { getLast30Days, getLast7Days, getStreak } from '../utils';
+import AccountButton from '../components/AccountButton';
 
 const DAYS = getLast30Days();
 const WEEK = getLast7Days();
@@ -32,10 +33,16 @@ export default function HistoryScreen() {
   if (habits.length === 0) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📅</Text>
-          <Text style={styles.emptyText}>No habits tracked yet</Text>
-          <Text style={styles.emptySubtext}>Add habits in the Today tab to see history here</Text>
+        <View style={styles.container}>
+          <View style={styles.headingRow}>
+            <Text style={styles.heading}>History</Text>
+            <AccountButton />
+          </View>
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>📅</Text>
+            <Text style={styles.emptyText}>No habits tracked yet</Text>
+            <Text style={styles.emptySubtext}>Add habits in the Today tab to see history here</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -105,7 +112,10 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        <Text style={styles.heading}>History</Text>
+        <View style={styles.headingRow}>
+          <Text style={styles.heading}>History</Text>
+          <AccountButton />
+        </View>
         <FlatList
           data={habits}
           keyExtractor={h => h.id}
@@ -123,7 +133,11 @@ const DOT = 9;
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   container: { flex: 1, paddingHorizontal: 20 },
-  heading: { color: COLORS.text, fontSize: 26, fontWeight: '700', paddingTop: 20, paddingBottom: 16 },
+  headingRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 20, paddingBottom: 16,
+  },
+  heading: { color: COLORS.text, fontSize: 26, fontWeight: '700' },
   card: {
     backgroundColor: COLORS.card, borderRadius: 20, padding: 18,
     marginBottom: 14, borderWidth: 1, borderColor: COLORS.border,

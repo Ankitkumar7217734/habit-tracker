@@ -5,6 +5,15 @@ import { today, isHabitDoneToday, getStreak, getChallengeProgress, getChallengeI
 import { XP_VALUES } from './constants';
 import { playChime, initAudio } from './sound';
 import { requestPermissions, scheduleDailyReminders } from './notifications';
+import { useAuth } from './AuthContext';
+import {
+  pullFromSupabase,
+  pushHabitsToSupabase,
+  pushChallengesToSupabase,
+  pushProfileToSupabase,
+  deleteHabitFromSupabase,
+  uploadLocalDataToSupabase,
+} from './lib/sync';
 
 const HabitContext = createContext(null);
 
@@ -13,10 +22,18 @@ export function HabitProvider({ children }) {
   const [challenges, setChallenges] = useState([]);
   const [profile, setProfile] = useState({ xp: 0 });
   const [rewardPopup, setRewardPopup] = useState(null);
+
   const rewardTimerRef = useRef(null);
   const challengesRef = useRef(challenges);
   useEffect(() => { challengesRef.current = challenges; }, [challenges]);
 
+  // Track userId via ref so callbacks can fire-and-forget without dep churn
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
+  const userIdRef = useRef(userId);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
+
+  // ── Initial local load ───────────────────────────────────────────────────
   useEffect(() => {
     loadHabits().then(setHabits);
     loadChallenges().then(setChallenges);
@@ -25,6 +42,44 @@ export function HabitProvider({ children }) {
     requestPermissions();
   }, []);
 
+  // ── Supabase sync on login / logout ─────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+
+    (async () => {
+      try {
+        const remote = await pullFromSupabase(userId);
+
+        if (remote.habits.length > 0) {
+          // Cloud has data — use it as source of truth and update local cache
+          setHabits(remote.habits);
+          saveHabits(remote.habits);
+          setChallenges(remote.challenges);
+          saveChallenges(remote.challenges);
+          if (remote.profile) {
+            setProfile(remote.profile);
+            saveProfile(remote.profile);
+          }
+        } else {
+          // Cloud is empty — upload whatever is in local cache (first-time migration)
+          const [localHabits, localChallenges, localProfile] = await Promise.all([
+            loadHabits(),
+            loadChallenges(),
+            loadProfile(),
+          ]);
+          await uploadLocalDataToSupabase(userId, {
+            habits: localHabits,
+            challenges: localChallenges,
+            profile: localProfile,
+          });
+        }
+      } catch (_) {
+        // Network error: silently continue with local data
+      }
+    })();
+  }, [userId]);
+
+  // ── Reward popup ─────────────────────────────────────────────────────────
   const showReward = useCallback((amount, reason) => {
     if (rewardTimerRef.current) clearTimeout(rewardTimerRef.current);
     rewardTimerRef.current = setTimeout(() => {
@@ -37,11 +92,13 @@ export function HabitProvider({ children }) {
     setProfile(prev => {
       const updated = { ...prev, xp: (prev.xp || 0) + amount };
       saveProfile(updated);
+      if (userIdRef.current) pushProfileToSupabase(userIdRef.current, updated).catch(() => {});
       return updated;
     });
     showReward(amount, reason);
   }, [showReward]);
 
+  // ── Challenge completion check ───────────────────────────────────────────
   const checkChallengesAfterUpdate = useCallback((updatedHabits) => {
     const current = challengesRef.current;
     if (current.length === 0) return;
@@ -60,16 +117,24 @@ export function HabitProvider({ children }) {
     if (changed) {
       setChallenges(newChallenges);
       saveChallenges(newChallenges);
+      if (userIdRef.current) {
+        pushChallengesToSupabase(userIdRef.current, newChallenges).catch(() => {});
+      }
     }
   }, [addXp]);
 
+  // ── Core write path: local-first, cloud in background ───────────────────
   const persistHabits = useCallback(async (updated) => {
     setHabits(updated);
     await saveHabits(updated);
     scheduleDailyReminders(updated);
     checkChallengesAfterUpdate(updated);
+    if (userIdRef.current) {
+      pushHabitsToSupabase(userIdRef.current, updated).catch(() => {});
+    }
   }, [checkChallengesAfterUpdate]);
 
+  // ── XP / streak helpers ──────────────────────────────────────────────────
   const buildStreakXp = (newCompletions) => {
     const streak = getStreak(newCompletions);
     if (streak === 3) return { bonus: XP_VALUES.streakMilestone3, text: '🔥 3-day streak!' };
@@ -78,7 +143,7 @@ export function HabitProvider({ children }) {
     return { bonus: 0, text: null };
   };
 
-  // Binary habit: tap to toggle done/undone
+  // ── Habit mutations ──────────────────────────────────────────────────────
   const toggleHabit = useCallback(async (id) => {
     const t = today();
     let xpEarned = 0;
@@ -118,7 +183,6 @@ export function HabitProvider({ children }) {
     }
   }, [habits, persistHabits, addXp]);
 
-  // Volume habit: increment count
   const incrementHabit = useCallback(async (id) => {
     const t = today();
     let xpEarned = 0;
@@ -172,6 +236,9 @@ export function HabitProvider({ children }) {
   }, [habits, persistHabits]);
 
   const deleteHabit = useCallback(async (id) => {
+    if (userIdRef.current) {
+      deleteHabitFromSupabase(userIdRef.current, id).catch(() => {});
+    }
     await persistHabits(habits.filter(h => h.id !== id));
   }, [habits, persistHabits]);
 
@@ -192,6 +259,7 @@ export function HabitProvider({ children }) {
     await persistHabits(updated);
   }, [habits, persistHabits]);
 
+  // ── Challenge mutations ──────────────────────────────────────────────────
   const startChallenge = useCallback(async (templateId, habitId) => {
     const challenge = {
       id: Date.now().toString(),
@@ -204,6 +272,7 @@ export function HabitProvider({ children }) {
     const updated = [...challengesRef.current, challenge];
     setChallenges(updated);
     await saveChallenges(updated);
+    if (userIdRef.current) pushChallengesToSupabase(userIdRef.current, updated).catch(() => {});
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, []);
 
@@ -219,6 +288,7 @@ export function HabitProvider({ children }) {
     const updated = [...challengesRef.current, challenge];
     setChallenges(updated);
     await saveChallenges(updated);
+    if (userIdRef.current) pushChallengesToSupabase(userIdRef.current, updated).catch(() => {});
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, []);
 
@@ -226,9 +296,10 @@ export function HabitProvider({ children }) {
     const updated = challengesRef.current.filter(c => c.id !== id);
     setChallenges(updated);
     await saveChallenges(updated);
+    if (userIdRef.current) pushChallengesToSupabase(userIdRef.current, updated).catch(() => {});
   }, []);
 
-  // Dev: simulate N days of completions to test streak rewards
+  // ── Dev helpers ──────────────────────────────────────────────────────────
   const simulateStreak = useCallback(async (habitId, numDays) => {
     const updated = habits.map(h => {
       if (h.id !== habitId) return h;
@@ -256,7 +327,6 @@ export function HabitProvider({ children }) {
     }
   }, [habits, persistHabits, addXp]);
 
-  // Dev: reset a habit's completions
   const resetHabit = useCallback(async (habitId) => {
     const updated = habits.map(h =>
       h.id === habitId ? { ...h, completions: {} } : h
@@ -264,13 +334,15 @@ export function HabitProvider({ children }) {
     await persistHabits(updated);
   }, [habits, persistHabits]);
 
-  // Dev: wipe all data
   const clearAllData = useCallback(async () => {
     await persistHabits([]);
     setChallenges([]);
     saveChallenges([]);
     setProfile({ xp: 0 });
     saveProfile({ xp: 0 });
+    if (userIdRef.current) {
+      pushProfileToSupabase(userIdRef.current, { xp: 0 }).catch(() => {});
+    }
   }, [persistHabits]);
 
   return (
